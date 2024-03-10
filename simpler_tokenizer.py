@@ -1,9 +1,8 @@
-import unicodedata
-
 import regex as re
-from tqdm import tqdm, trange
 
 from basic_tokenizer import BasicTokenizer
+from tqdm import trange
+import unicodedata
 
 
 def render_token(t: bytes) -> str:
@@ -12,7 +11,7 @@ def render_token(t: bytes) -> str:
     return repr(s)
 
 
-class RegexTokenizer(BasicTokenizer):
+class SimplerTokenizer(BasicTokenizer):
     def __init__(self):
         super().__init__()
         self.GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
@@ -43,27 +42,15 @@ class RegexTokenizer(BasicTokenizer):
             #     print(f"replacing {mcp} by {key} occuring {count} times ")
 
         if verbose:
-            len_ids = len(sum(ids, []))
+            len_ids = sum([len(i) for i in ids])
             print("-" * 30)
             print(f"{starting_len:_} tokens")
             print(f"{len_ids:_} ids")
             print(f"{starting_len/len_ids:.02f}x compression ratio")
             print("-" * 30)
 
-    def encode(self, text):
-        enc = list(text.encode("utf-8"))
-        for key, pair in self.merges.items():
-            enc = self.replace_pair_with_key(enc, pair, key)
-            # print(len(enc))
-        return enc
-
-    def decode(self, ids):
-        for key, pair in reversed(list(self.merges.items())):
-            ids = self.replace_key_with_pair(ids, key, pair)
-        return bytes(ids).decode("utf-8")
-
     def write_vocab(self):
-        vocab_file = "regex.vocab"
+        vocab_file = "simpler.vocab"
         inverted_merges = {idx: pair for pair, idx in self.merges.items()}
         with open(vocab_file, "w", encoding="utf-8") as f:
             for idx, token in self.vocab.items():
@@ -101,72 +88,23 @@ def process_text(text):
 
 def main():
 
-    tok = RegexTokenizer()
+    tok = SimplerTokenizer()
 
     with open("shake.txt", "r") as f:
         shake = f.read()
     starting_shake = shake[:100_000]
     test_set = shake[:100_000]
 
-    tok.train(process_text(shake), 500, verbose=False)
+    tok.train(process_text(starting_shake), 600, verbose=True)
 
-    encoded = tok.encode(process_text(shake))
+    encoded = tok.encode(test_set)
+    decoded = tok.decode(encoded)
 
-    vocab_size = len(tok.vocab)
-
-    from collections import Counter
-
-    _counter = Counter(encoded)
-    full_counter = [(i, _counter.get(i, 0)) for i in range(256, 500)]
-    for k, c in full_counter:
-        if not c:
-            print(k)
-            tok.vocab.pop(k)
-
-    print(full_counter)
-
-    # print(tok.vocab)
-    reduced_vocab_size = len(tok.vocab)
-    print(f"vocab compressed by {vocab_size/reduced_vocab_size:.02f}x")
-
-    # decoded = tok.decode(encoded)
-    # assert test_set == decoded
+    assert test_set == decoded
 
     tok.write_vocab()
 
 
-import cProfile
-import pstats
-from io import StringIO
-
 if __name__ == "__main__":
 
     main()
-
-    # pr = cProfile.Profile()
-    # pr.enable()
-
-    # main()
-
-    # pr.disable()
-    # s = StringIO()
-    # ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
-    # ps.print_stats()
-    # lines = s.getvalue().split("\n")
-
-    # # Print header lines
-    # for line in lines[:5]:
-    #     print(line)
-
-    # # Process and print lines with cumulative time > 0.1
-    # for line in lines[5:]:
-    #     parts = line.split()
-    #     if len(parts) > 5:  # Ensure line has enough parts to avoid IndexError
-    #         try:
-    #             cumulative_time = float(
-    #                 parts[3]
-    #             )  # Cumulative time is typically in the 4th column
-    #             if cumulative_time > 0.1:
-    #                 print(line)
-    #         except ValueError:
-    #             pass  # Skip lines where conversion to float fails (e.g., headers or summary lines)

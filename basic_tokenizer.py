@@ -1,4 +1,11 @@
 import time
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
+from itertools import pairwise
+
+
+def is_sublist_of_length_two(sublist, mainlist):
+    return any(sublist == pair for pair in pairwise(mainlist))
 
 
 class BasicTokenizer:
@@ -21,8 +28,32 @@ class BasicTokenizer:
         stats = self.get_stats(enc)
         return max([(c, p) for p, c in stats.items()])
 
+    # @staticmethod
+    # def replace_pair_with_key(seq, mcp, key):
+
+    #     if not is_sublist_of_length_two(mcp, seq):
+    #         return seq
+
+    #     seq = np.array(seq, dtype="object")
+
+    #     view = sliding_window_view(seq, mcp_length)
+    #     indexes = np.where((view == mcp).all(axis=1))[0]
+    #     replace = np.empty(0, dtype="object")
+
+    #     for index in indexes:
+    #         replace = np.append(replace, [key] + [None] * (mcp_length - 1))
+
+    #     np.put(seq, np.concatenate([indexes + i for i in range(mcp_length)]), replace)
+    #     out = seq[seq != None]
+    #     return out.tolist()
+
     @staticmethod
-    def replace_pair_with_key(seq, mcp, key):
+    def replace_pair_with_key(seq: list, mcp: list, key: int):
+        "replace pair of values by a corresponding key, return a new seq"
+
+        if not is_sublist_of_length_two(mcp, seq):
+            return seq
+
         i = 0
         while i < len(seq) - 1:
             if seq[i] == mcp[0] and seq[i + 1] == mcp[1]:
